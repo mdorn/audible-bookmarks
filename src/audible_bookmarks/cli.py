@@ -1,4 +1,7 @@
-"""Command-line interface: ``audible-bookmarks {login,logout,list,transcribe}``."""
+"""Command-line interface.
+
+``audible-bookmarks {login,logout,list,transcribe,markdown}``
+"""
 
 import argparse
 import getpass
@@ -17,7 +20,9 @@ from audible_bookmarks.annotations import (
 from audible_bookmarks.audio import open_book
 from audible_bookmarks.config import DEFAULT_DATA_DIR, Paths
 from audible_bookmarks.download import download_book
-from audible_bookmarks.errors import TranscriberError
+from audible_bookmarks.errors import NotTranscribedError, TranscriberError
+from audible_bookmarks.markdown import render_markdown
+from audible_bookmarks.notes import load_notes
 from audible_bookmarks.pipeline import transcribe_annotations
 from audible_bookmarks.transcribe import DEFAULT_MODEL, WhisperTranscriber
 
@@ -108,6 +113,25 @@ def cmd_transcribe(args: argparse.Namespace, paths: Paths) -> int:
     return 0
 
 
+def cmd_markdown(args: argparse.Namespace, paths: Paths) -> int:
+    asin: str = args.asin
+    notes = load_notes(paths.notes_file(asin))
+    if not notes:
+        raise NotTranscribedError(asin)
+    book = library.find_book(library.load_library(paths.library_file), asin)
+    # Audible only knows the audiobook's release date, not first publication.
+    year = args.year or (book.get("release_date") or "")[:4] or None
+
+    document = render_markdown(book["title"], library.authors(book), year, notes)
+    if args.output is None:
+        print(document, end="")
+    else:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(document, encoding="utf-8")
+        print(f"Saved to {args.output}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="audible-bookmarks",
@@ -169,6 +193,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--force", action="store_true", help="re-transcribe existing notes"
     )
     transcribe.set_defaults(func=cmd_transcribe)
+
+    markdown = commands.add_parser(
+        "markdown", help="export a transcribed book's notes as markdown"
+    )
+    markdown.add_argument("asin", help="book ASIN (must be transcribed first)")
+    markdown.add_argument(
+        "--year", help="year for the front matter (default: audiobook release year)"
+    )
+    markdown.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        metavar="PATH",
+        help="write to a file instead of printing",
+    )
+    markdown.set_defaults(func=cmd_markdown)
     return parser
 
 

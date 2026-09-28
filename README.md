@@ -1,8 +1,11 @@
-# Audible bookmark transcriber
+# Audible bookmarks transcription tool
 
 ## Introduction
 
-This is a small tool for [Audible](https://audible.com) users to extract the clips and bookmarks they saved in their audiobooks as text. Speech-to-text runs locally on your Mac with [mlx-whisper](https://pypi.org/project/mlx-whisper/), so no OpenAI account is needed.
+This is a tool that enables [Audible](https://audible.com) users to extract the clips and bookmarks they saved in their audiobooks as text. Speech-to-text runs locally on your Mac with [mlx-whisper](https://pypi.org/project/mlx-whisper/), so no OpenAI account is needed.
+
+It was inspired by this [Audible bookmark transcriber](https://github.com/jaredgth/audible-bookmark-transcriber).
+
 
 > [!IMPORTANT]
 > This tool is only meant to help users use the Audible books they **actually own**.
@@ -67,10 +70,34 @@ The notes are saved to `data/audio/<ASIN>/transcribed_notes.json`, sorted by pos
 ]
 ```
 
+### Export to markdown
+After a book has been transcribed:
+```
+uv run audible-bookmarks markdown <ASIN> > notes.md
+```
+prints the notes in book order, grouped by chapter:
+```
+---
+author: "John Williams"
+title: "Stoner"
+year: 2010
+---
+
+Chapter 13:
+- 7:22:10: end of the semester, but doubted if he could. ...
+- 7:29:11: Nothing. Nothing, she said. ...
+
+Chapter 14:
+- 7:37:35: and whose common ethic was to present ...
+```
+Use `-o PATH` to write the file directly. The year is the audiobook's release year, since Audible doesn't know when the book was first published; set it with `--year`, e.g. `--year 1965`. The command fails if the book hasn't been transcribed yet.
+
 ## Development
 ```
 uv run pytest                 # tests
 uv run ruff check .           # lint
 uv run ruff format .          # format
 uv run pyrefly check          # type check
+
+uv run coverage run -m pytest && uv run coverage report  # tests with coverage
 ```

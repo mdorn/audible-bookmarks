@@ -20,5 +20,13 @@ class BookNotFoundError(TranscriberError):
         )
 
 
+class NotTranscribedError(TranscriberError):
+    def __init__(self, asin: str) -> None:
+        super().__init__(
+            f"No transcriptions for {asin}. "
+            f"Run `audible-bookmarks transcribe {asin}` first."
+        )
+
+
 class LicenseError(TranscriberError):
     """Audible refused a license or returned no download URL."""

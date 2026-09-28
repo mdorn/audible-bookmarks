@@ -6,6 +6,7 @@ import pytest
 
 from audible_bookmarks import cli
 from audible_bookmarks.config import Paths
+from audible_bookmarks.notes import Note, save_notes
 from audible_bookmarks.transcribe import DEFAULT_MODEL
 
 
@@ -90,3 +91,61 @@ def test_transcribe_unknown_asin(tmp_path, capsys, monkeypatch):
 
     assert cli.main(["--data-dir", str(tmp_path), "transcribe", "NOPE"]) == 1
     assert "NOPE not found" in capsys.readouterr().err
+
+
+def _transcribed_book(tmp_path: Path) -> None:
+    paths = Paths(tmp_path)
+    paths.config_dir.mkdir(parents=True)
+    paths.library_file.write_text(
+        json.dumps(
+            [
+                {
+                    "asin": "B1",
+                    "title": "Stoner",
+                    "authors": [{"name": "John Williams"}],
+                    "release_date": "2010-06-16",
+                }
+            ]
+        )
+    )
+    save_notes(
+        paths.notes_file("B1"),
+        [
+            Note(
+                id="c1",
+                kind="clip",
+                start_ms=26_530_133,
+                end_ms=26_560_133,
+                timestamp="07:22:10.133",
+                chapter="Chapter 13",
+                note="",
+                text="end of the semester",
+            )
+        ],
+    )
+
+
+def test_markdown_requires_transcription(tmp_path, capsys):
+    assert cli.main(["--data-dir", str(tmp_path), "markdown", "B1"]) == 1
+    assert "audible-bookmarks transcribe B1" in capsys.readouterr().err
+
+
+def test_markdown_prints_document(tmp_path, capsys):
+    _transcribed_book(tmp_path)
+
+    assert cli.main(["--data-dir", str(tmp_path), "markdown", "B1"]) == 0
+
+    out = capsys.readouterr().out
+    assert out.startswith('---\nauthor: "John Williams"\ntitle: "Stoner"\nyear: 2010\n')
+    assert out.endswith("Chapter 13:\n- 7:22:10: end of the semester\n")
+
+
+def test_markdown_year_override_and_output_file(tmp_path, capsys):
+    _transcribed_book(tmp_path)
+    output = tmp_path / "out" / "stoner.md"
+
+    args = ["--data-dir", str(tmp_path), "markdown", "B1", "--year", "1965"]
+    assert cli.main([*args, "-o", str(output)]) == 0
+
+    assert "year: 1965\n" in output.read_text()
+    assert str(output) in capsys.readouterr().out
